@@ -1,0 +1,30 @@
+
+syntax = "proto3";
+
+option go_package = "../opt";
+
+package echo;
+
+service TestService {
+  rpc SayHello (EchoRequest) returns (EchoReply) {}
+
+  rpc Add (AddRequest) returns (AddReply) {}
+}
+
+// The request message containing the user's name.
+message EchoRequest {
+  string name = 1;
+}
+
+// The response message containing the greetings
+message EchoReply {
+  string message = 1;
+}
+
+message AddRequest {
+  repeated int32 foo = 1;
+}
+
+message AddReply {
+  int64 result = 1;
+}
