@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
@@ -25,7 +26,7 @@ func main() {
 	// 用于记录服务名，服务节点名等信息
 	applicationRes := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceName("httpServer"),
+		semconv.ServiceName("httpServer-plugin"),
 		semconv.K8SNodeName("single-node"),
 	)
 
@@ -49,22 +50,24 @@ func main() {
 		panic(fmt.Sprintf("creating OTLP metric exporter: %w", err))
 	}
 	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter))))
-	
+
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
-	http.HandleFunc("/", indexHandler)
+	http.Handle("/", otelhttp.NewHandler(http.HandlerFunc(indexHandler), "indexHandler", otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents)))
 	http.ListenAndServe(":3000", nil)
 
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	span := trace.SpanFromContext(ctx)
+	bag := baggage.FromContext(ctx)
 
 	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header)) //从Header中取出传播的信息
 
-	_, span := otel.Tracer("doHandleTracer").Start(ctx, "doHandle", trace.WithAttributes(attribute.String("url", r.URL.String())))
+	//_, span := otel.Tracer("doHandleTracer").Start(ctx, "doHandle", trace.WithAttributes(attribute.String("url", r.URL.String())))
 
-	bag := baggage.FromContext(ctx)
+	//bag := baggage.FromContext(ctx)
 	defer span.End()
 	span.AddEvent("doHandle 处理开始")
 	span.AddEvent("baggage got:" + bag.String())

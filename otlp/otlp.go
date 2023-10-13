@@ -11,10 +11,9 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
-func InitOtlpProvider(ctx context.Context) {
+func InitOtlpProvider(ctx context.Context, res *resource.Resource) {
 	client := otlptracehttp.NewClient(otlptracehttp.WithEndpoint("127.0.0.1:4318"), otlptracehttp.WithInsecure())
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
@@ -29,21 +28,18 @@ func InitOtlpProvider(ctx context.Context) {
 
 	// 用Prometheus做临时代替
 	//metricExporter, err := prometheus.New()
-	otel.SetTracerProvider(newTraceProvider(traceExporter))
+	otel.SetTracerProvider(newTraceProvider(traceExporter, res))
 	//otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(metricExporter)))
 	otel.SetMeterProvider(newMeterProvider(metricExporter))
 
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 }
 
-func newTraceProvider(exp sdktrace.SpanExporter) *sdktrace.TracerProvider {
-	r := resource.NewWithAttributes(
-		semconv.SchemaURL,
-		semconv.ServiceName("CCCC"),
-	)
+func newTraceProvider(exp sdktrace.SpanExporter, res *resource.Resource) *sdktrace.TracerProvider {
+
 	return sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exp),
-		sdktrace.WithResource(r),
+		sdktrace.WithResource(res),
 		//sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.5)), //概率
 		//tracesdk.WithSampler(tracesdk.ParentBased(tracesdk.TraceIDRatioBased(0.5))),
 	)

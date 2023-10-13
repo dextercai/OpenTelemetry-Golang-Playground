@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -23,7 +24,7 @@ func main() {
 	// 用于记录服务名，服务节点名等信息
 	applicationRes := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceName("httpClient"),
+		semconv.ServiceName("httpClient-plugin"),
 		semconv.K8SNodeName("single-node"),
 	)
 
@@ -65,16 +66,18 @@ func main() {
 
 	// 向Ctx中注入Baggage信息
 	newCtx = baggage.ContextWithBaggage(newCtx, setMember)
+
 	span.AddEvent("SendRequest")
 	req, err := http.NewRequestWithContext(newCtx, "GET", "http://localhost:3000/api/do/123", nil)
-	carrier := propagation.HeaderCarrier(req.Header)
-	otel.GetTextMapPropagator().Inject(newCtx, carrier) // 注入到HttpHeader中进行传递
-	if err != nil {
-		span.RecordError(err)
-		return
-	}
 
-	client := http.Client{}
+	//carrier := propagation.HeaderCarrier(req.Header)
+	//otel.GetTextMapPropagator().Inject(newCtx, carrier) // 注入到HttpHeader中进行传递
+	//if err != nil {
+	//	span.RecordError(err)
+	//	return
+	//}
+
+	client := http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport, otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents))}
 	resp, err := client.Do(req)
 	if err != nil {
 		panic(err)

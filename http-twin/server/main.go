@@ -13,10 +13,9 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"net/http"
-
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
+	"net/http"
 	"time"
 )
 
@@ -50,6 +49,8 @@ func main() {
 	}
 	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter))))
 
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
 	http.HandleFunc("/", indexHandler)
 	http.ListenAndServe(":3000", nil)
 
@@ -58,14 +59,19 @@ func main() {
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
+	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header)) //从Header中取出传播的信息
+
 	_, span := otel.Tracer("doHandleTracer").Start(ctx, "doHandle", trace.WithAttributes(attribute.String("url", r.URL.String())))
 
 	bag := baggage.FromContext(ctx)
 	defer span.End()
 	span.AddEvent("doHandle 处理开始")
-	span.AddEvent("baggage:" + bag.String())
+	span.AddEvent("baggage got:" + bag.String())
 	t := time.Now()
 	span.SetAttributes(attribute.String("process.time", t.Sub(time.Now()).String()))
-	w.Write([]byte("OK" + time.Now().String()))
+
+	counter, _ := otel.GetMeterProvider().Meter("httpServer").Int64Counter("indexHandlerCounter")
+	counter.Add(ctx, 1)
+
+	w.Write([]byte(time.Now().String()))
 }

@@ -48,8 +48,12 @@ func main() {
 	}
 	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter))))
 
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	// 初始化结束
+
 	newCtx, span := otel.Tracer("requestTracer").Start(ctx, "httpReqStart")
-	defer span.End()
+	// defer span.End() 一般通过这种方式关闭Span，Demo由于只有单函数，并等待发送，该方法手动调用
 
 	// 创建一个Baggage用于上下文传递
 	bag, _ := baggage.New()
@@ -61,12 +65,13 @@ func main() {
 
 	// 向Ctx中注入Baggage信息
 	newCtx = baggage.ContextWithBaggage(newCtx, setMember)
-
+	span.AddEvent("SendRequest")
 	req, err := http.NewRequestWithContext(newCtx, "GET", "http://localhost:3000/api/do/123", nil)
 	carrier := propagation.HeaderCarrier(req.Header)
 	otel.GetTextMapPropagator().Inject(newCtx, carrier) // 注入到HttpHeader中进行传递
 	if err != nil {
-		panic(err)
+		span.RecordError(err)
+		return
 	}
 
 	client := http.Client{}
@@ -78,5 +83,7 @@ func main() {
 	defer resp.Body.Close()
 	fmt.Printf("%s", body)
 
-	time.Sleep(10 * time.Second) // Trace后台发送，等待发送完。
+	span.End()
+
+	time.Sleep(10 * time.Second) // Trace一般后台发送，等待发送完。
 }
