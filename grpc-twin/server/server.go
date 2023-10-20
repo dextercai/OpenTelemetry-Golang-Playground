@@ -37,7 +37,7 @@ func Init() {
 
 	ctx := context.Background()
 
-	otlpClient := otlptracehttp.NewClient(otlptracehttp.WithEndpoint("127.0.0.1:4318"), otlptracehttp.WithInsecure())
+	otlpClient := otlptracehttp.NewClient(otlptracehttp.WithEndpoint("10.10.12.221:14318"), otlptracehttp.WithInsecure())
 
 	traceExporter, err := otlptrace.New(ctx, otlpClient)
 	if err != nil {
@@ -48,7 +48,7 @@ func Init() {
 		sdktrace.WithResource(applicationRes),
 	))
 
-	metricExporter, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpoint("127.0.0.1:4318"), otlpmetrichttp.WithInsecure())
+	metricExporter, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpoint("10.10.12.221:14318"), otlpmetrichttp.WithInsecure())
 	if err != nil {
 		panic(fmt.Sprintf("creating OTLP metric exporter: %w", err))
 	}
@@ -93,7 +93,7 @@ func main() {
 	)
 	opt.RegisterTestServiceServer(s, &serverImpl{})
 
-	reflection.Register(s)
+	reflection.Register(s) // 按需
 
 	err = s.Serve(lis)
 	if err != nil {

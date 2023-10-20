@@ -32,7 +32,7 @@ func Init() {
 
 	ctx := context.Background()
 
-	otlpClient := otlptracehttp.NewClient(otlptracehttp.WithEndpoint("127.0.0.1:4318"), otlptracehttp.WithInsecure())
+	otlpClient := otlptracehttp.NewClient(otlptracehttp.WithEndpoint("10.10.12.221:14318"), otlptracehttp.WithInsecure())
 
 	traceExporter, err := otlptrace.New(ctx, otlpClient)
 	if err != nil {
@@ -43,17 +43,30 @@ func Init() {
 		sdktrace.WithResource(applicationRes),
 	))
 
-	metricExporter, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpoint("127.0.0.1:4318"), otlpmetrichttp.WithInsecure())
+	metricExporter, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpoint("10.10.12.221:14318"), otlpmetrichttp.WithInsecure())
 	if err != nil {
 		panic(fmt.Sprintf("creating OTLP metric exporter: %w", err))
 	}
-	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter))))
+	otel.SetMeterProvider(sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(time.Microsecond))),
+		sdkmetric.WithResource(applicationRes),
+	))
 
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 }
 func main() {
 	Init()
 
+	counter, err := otel.GetMeterProvider().Meter("dev_meter").Int64Counter("success_test_count")
+
+	if err != nil {
+		return
+	}
+	for i := 0; i < 500; i++ {
+		counter.Add(context.Background(), 1)
+		time.Sleep(1 * time.Second)
+	}
+	return
 	ctx := context.Background()
 	dialOptions := []grpc.DialOption{
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
@@ -101,6 +114,12 @@ func main() {
 		}})
 
 		fmt.Printf("调用成功: %s", r.Message)
+
+		counter, err := otel.Meter("dev_meter").Int64Counter("success_test_count")
+		if err != nil {
+			return
+		}
+		counter.Add(ctx, 1)
 	}(ctx)
 
 	time.Sleep(10 * time.Second)

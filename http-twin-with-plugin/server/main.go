@@ -63,14 +63,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	span := trace.SpanFromContext(ctx)
 	bag := baggage.FromContext(ctx)
 
-	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header)) //从Header中取出传播的信息
+	// ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header)) //从Header中取出传播的信息
 
-	//_, span := otel.Tracer("doHandleTracer").Start(ctx, "doHandle", trace.WithAttributes(attribute.String("url", r.URL.String())))
+	ctx, span = otel.Tracer("doHandleTracer").Start(ctx, "doHandle", trace.WithAttributes(attribute.String("url", r.URL.String())))
 
 	//bag := baggage.FromContext(ctx)
 	defer span.End()
-	span.AddEvent("doHandle 处理开始")
-	span.AddEvent("baggage got:" + bag.String())
+	span.AddEvent("doHandle 处理开始", trace.WithStackTrace(true))
+	span.AddEvent("baggage got:"+bag.String(), trace.WithAttributes(attribute.String("user-id", bag.Member("user-id").String())))
 	t := time.Now()
 	span.SetAttributes(attribute.String("process.time", t.Sub(time.Now()).String()))
 
