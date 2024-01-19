@@ -30,7 +30,7 @@ func main() {
 
 	ctx := context.Background()
 
-	otlpClient := otlptracehttp.NewClient(otlptracehttp.WithEndpoint("127.0.0.1:4318"), otlptracehttp.WithInsecure())
+	otlpClient := otlptracehttp.NewClient()
 
 	traceExporter, err := otlptrace.New(ctx, otlpClient)
 	if err != nil {
@@ -74,4 +74,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	counter.Add(ctx, 1)
 
 	w.Write([]byte(time.Now().String()))
+
+	
 }
